@@ -2,7 +2,7 @@ from aiogram import F,Router
 from aiogram.filters import CommandStart
 from aiogram.types import Message, FSInputFile, CallbackQuery
 from data.subloader import get_json, load_json
-from keyboards import inline
+from keyboards import inline, reply
 from datetime import datetime
 
 #======================================================================================
@@ -25,16 +25,20 @@ async def start(message:Message):
         caption='⚗Приветствую, юный химик!'
         '\n\nТебе предстоит открыть всевозможные химические элементы!'
         '\n\n<b>Удачи!</b>',
-        reply_markup=None if value else inline.first_chemical_element_kb
+        reply_markup=reply.menu_rkb if value else inline.first_chemical_element_kb
     )
 
 @router.callback_query(F.data == 'открыть первый элемент')
 async def ivent_first_chemical_element(callback:CallbackQuery):
     data = await get_json('data.json')
     user_data = {
+        'date_of_register': datetime.now().strftime('%d-%m-%y'),
         'chemical_element': 1,
-        'date_of_register': datetime.now().strftime('%d-%m-%y')
+        'isotopes': [],
+        'balance': 10,
+        'last_profit_collection': str(datetime.today()),
+        'income_per_minute': 1
     }
     data[str(callback.from_user.id)] = user_data
     load_json('data.json', data)
-    await callback.message.answer(text='Поздравляем! Вы получили свой первый химический элемент - водород')
+    await callback.message.answer(text='Поздравляем! Вы получили свой первый химический элемент - Водород')

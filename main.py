@@ -2,7 +2,7 @@ from aiogram import Dispatcher, Bot
 import asyncio
 from config_reader import config
 from aiogram.client.default import DefaultBotProperties
-from handlers import user_commands
+from handlers import user_commands, bot_messages
 
 
 
@@ -11,7 +11,8 @@ async def main():
     dp = Dispatcher()
     
     dp.include_routers(
-        user_commands.router
+        user_commands.router,
+        bot_messages.router
     )
     
     await bot.delete_webhook(drop_pending_updates=True)
