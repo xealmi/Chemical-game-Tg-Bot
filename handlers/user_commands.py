@@ -37,8 +37,14 @@ async def ivent_first_chemical_element(callback:CallbackQuery):
         'isotopes': [],
         'balance': 10,
         'last_profit_collection': str(datetime.today()),
-        'income_per_minute': 1
+        'income_per_minute': 1,
+        'cases': {
+            "common_case": 1,
+            "epic_case": 0,
+            "legendary_case": 0,
+            "mythical_case": 0
+        }
     }
     data[str(callback.from_user.id)] = user_data
     load_json('data.json', data)
-    await callback.message.answer(text='Поздравляем! Вы получили свой первый химический элемент - Водород')
+    await callback.message.answer(text='Поздравляем! Вы получили свой первый химический элемент - Водород', reply_markup=reply.menu_rkb)
