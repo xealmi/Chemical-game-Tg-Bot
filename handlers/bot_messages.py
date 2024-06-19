@@ -2,7 +2,8 @@ from aiogram import F, Router
 from aiogram.types import Message, FSInputFile, CallbackQuery
 from data.subloader import get_json, load_json
 from keyboards import reply, inline
-from datetime import datetime
+from datetime import datetime, timedelta
+from scripts.scripts import case_roll 
 
 #=======================================================================================
 
@@ -43,7 +44,7 @@ async def collect_profit(message:Message):
         if time !=0:
             el_income = user_data['chemical_element']
             is_income = user_data['isotopes']
-            income = (round((1-1.4**el_income)/(-0.4)) + round((1-1.05**is_income)/(-0.05)))*time
+            income = (round((1-1.4**el_income)/(-0.4)) + round((1-1.05**is_income)/(-0.05)))   *time*   (2 if (datetime.fromisoformat(user_data['premium']) -now).seconds>0 else 1)
             user_data['balance'] += income
             user_data['last_profit_collection'] = str(now)
             await message.answer(text=f'💥Вы получили <b>{income} кДж</b> энергии')
@@ -62,44 +63,80 @@ async def cases(message:Message):
     
     if str(message.from_user.id) in data:
         user_data = data[str(message.from_user.id)]
-        cases = user_data['cases']
-        await message.answer(text=f'Ваши кейсы:', reply_markup=inline.cases_kb(cases["common_case"], cases["epic_case"],cases["legendary_case"],cases["mythical_case"]))
+        await message.answer(text=f'Ваши кейсы:', reply_markup=inline.cases_kb(user_data['cases']))
     else:
         await message.answer(text='Для начала откройте хотя бы один химический элемент')
 
 
 
-# @router.callback_query(F.data.casefold().in_(['open_c_case','open_e_case','open_l_case','open_m_case']))
-# async def open_case(callback: CallbackQuery):
-#     data = await get_json('data.json')
-#     user_data = data[str(callback.from_user.id)]
-#     lvl = user_data['chemical_element']
+@router.callback_query(F.data.casefold().in_(['open_c_case','open_e_case','open_l_case','open_m_case']))
+async def open_case(callback: CallbackQuery):
+    data = await get_json('data.json')
+    user_data = data[str(callback.from_user.id)]
+    lvl = user_data['chemical_element']
     
-#     if callback.data == 'open_c_case':
-#         selected_case = 'common_case'
-#     elif callback.data == 'open_e_case':
-#         if lvl <3:
-#             selected_case = 0
-#             await callback.answer(text='Этот кейс доступен с 3 химического элемента')
-#         else:
-#             selected_case = 'epic_case'
-#     elif callback.data == 'open_l_case':
-#         if lvl <6:
-#             selected_case = 0
-#             await callback.answer(text='Этот кейс доступен с 6 химического элемента')
-#         else:
-#             selected_case = 'legendary_case'
-#     else:
-#         if lvl <9:
-#             selected_case = 0
-#             await callback.answer(text='Этот кейс доступен с 9 химического элемента')
-#         else:
-#             selected_case = 'mythical_case'
+    if callback.data == 'open_c_case':
+        selected_case = 'common_case'
+    elif callback.data == 'open_e_case':
+        if lvl <3:
+            selected_case = 0
+            await callback.answer(text='Этот кейс доступен с 3 химического элемента')
+        else:
+            selected_case = 'epic_case'
+    elif callback.data == 'open_l_case':
+        if lvl <6:
+            selected_case = 0
+            await callback.answer(text='Этот кейс доступен с 6 химического элемента')
+        else:
+            selected_case = 'legendary_case'
+    else:
+        if lvl <9:
+            selected_case = 0
+            await callback.answer(text='Этот кейс доступен с 9 химического элемента')
+        else:
+            selected_case = 'mythical_case'
     
-#     if selected_case !=0:
-#         if user_data['cases'][selected_case] == 0:
-#             await callback.answer(text='У вас нет кейсов такого типа!')
-#         else:
+    if selected_case !=0:
+        if user_data['cases'][selected_case] == 0:
+            await callback.answer(text='У вас нет кейсов такого типа!')
+        else:
+            res = case_roll(selected_case)
+            user_data['cases'][selected_case]-=1
+            if isinstance(res, int):
+                user_data['balance'] += res
+                await callback.message.answer(text=f'Поздравляем! Вы выиграли <b>{res} кДж</b>!')
+            
+            elif res == 'add_is':
+                user_data['isotopes'] +=1
+                await callback.message.answer(text=f'Поздравляем! Вы выиграли <b>открытие нового изотопа</b>!')
+            
+            elif res == 'add_el':
+                user_data['chemical_element']+=1
+                await callback.message.answer(text=f'Поздравляем! Вы выиграли <b>открытие нового химического элемента</b>!')
+            
+            elif res== 'prem3d':
+                today =datetime.today()
+                if (datetime.fromisoformat(user_data['premium']) -today).seconds>0:
+                    user_data['premium'] = str(datetime.fromisoformat(user_data['premium']) + timedelta(days=3))
+                else:
+                    user_data['premium'] = str(today + timedelta(days=3))
+                await callback.message.answer(text=f'Поздравляем! Вы выиграли <b>премиум на 3 дня</b>!🤯')
+            
+            else:
+                user_data['cases'][res] +=1
+                if res =='common_case':
+                    res = 'обычный' 
+                elif res =='epic_case':
+                    res = 'эпический' 
+                elif res =='legendary_case':
+                    res = 'легендарный' 
+                else:
+                    res = 'мифический' 
+                await callback.message.answer(text=f'Поздравляем! Вы выиграли <b>{res} кейс</b>!')
+            
+            await callback.message.edit_reply_markup(reply_markup=inline.cases_kb(user_data['cases']))
+            data[str(callback.from_user.id)] = user_data
+            load_json('data.json', data)
 
 
 
@@ -120,18 +157,18 @@ async def laboratory(message:Message):
 async def laboratoey_buy(callback:CallbackQuery):
     if callback.data == 'buy_el':
         data = await get_json('data.json')
-        
+        user_data= data[str(callback.from_user.id)]
         # Проверка, будет ли баланс после вычитания стоимости отрицательным
-        x =data[str(callback.from_user.id)]['chemical_element']+1
-        balance = data[str(callback.from_user.id)]['balance']
+        x =user_data['chemical_element']+1
+        balance = user_data['balance']
         cost = round(10*(2.8)**x)
         new_balance = balance-cost
         
         if new_balance >=0:
-            data[str(callback.from_user.id)]['balance'] =new_balance
+            user_data['balance'] =new_balance
             chem_els = await get_json('chemical_elements.json')
             # Обновление хим. элиента в data.json
-            data[str(callback.from_user.id)]['chemical_element'] =x
+            user_data['chemical_element'] =x
             load_json('data.json', data)
             
             await callback.message.edit_reply_markup(
@@ -141,7 +178,7 @@ async def laboratoey_buy(callback:CallbackQuery):
                     round(10*(1.63)**(user_data['isotopes']+1))
                     )
                 )
-            await callback.message.answer(text=f'Поздравляем! Вы получили {chem_els[str(data[str(callback.from_user.id)]['chemical_element'])]['name']}!')
+            await callback.message.answer(text=f'Поздравляем! Вы получили {chem_els[str(user_data['chemical_element'])]['name']}!')
         else:
             await callback.answer(text='😭Вам не хватает энергии!')
     

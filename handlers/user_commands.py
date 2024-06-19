@@ -42,7 +42,8 @@ async def ivent_first_chemical_element(callback:CallbackQuery):
             "epic_case": 0,
             "legendary_case": 0,
             "mythical_case": 0
-        }
+        },
+        'premium': str(datetime.today())
     }
     data[str(callback.from_user.id)] = user_data
     load_json('data.json', data)

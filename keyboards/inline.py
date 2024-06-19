@@ -6,13 +6,13 @@ first_chemical_element_kb= InlineKeyboardMarkup(
     ]
 )
 
-def cases_kb(c,e,l,m):
+def cases_kb(cases):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=f'⚪Открыть обычный кейс ({c} шт.)', callback_data='open_c_case')],
-            [InlineKeyboardButton(text=f'🟣Открыть эпический кейс ({e} шт.)', callback_data='open_e_case')],
-            [InlineKeyboardButton(text=f'🟡Открыть легендарный кейс ({l} шт.)', callback_data='open_l_case')],
-            [InlineKeyboardButton(text=f'🔴Открыть мифичский кейс ({m} шт.)', callback_data='open_m_case')]
+            [InlineKeyboardButton(text=f'⚪Открыть обычный кейс ({cases['common_case']} шт.)', callback_data='open_c_case')],
+            [InlineKeyboardButton(text=f'🟣Открыть эпический кейс ({cases['epic_case']} шт.)', callback_data='open_e_case')],
+            [InlineKeyboardButton(text=f'🟡Открыть легендарный кейс ({cases['legendary_case']} шт.)', callback_data='open_l_case')],
+            [InlineKeyboardButton(text=f'🔴Открыть мифичский кейс ({cases['mythical_case']} шт.)', callback_data='open_m_case')]
         ]
     )
     return kb
