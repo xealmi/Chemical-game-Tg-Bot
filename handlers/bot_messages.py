@@ -41,7 +41,9 @@ async def collect_profit(message:Message):
         now = datetime.today()
         time = (now - datetime.fromisoformat(user_data['last_profit_collection'])).seconds//60
         if time !=0:
-            income = user_data['income_per_minute']*time
+            el_income = user_data['chemical_element']
+            is_income = user_data['isotopes']
+            income = (round((1-1.4**el_income)/(-0.4)) + round((1-1.05**is_income)/(-0.05)))*time
             user_data['balance'] += income
             user_data['last_profit_collection'] = str(now)
             await message.answer(text=f'💥Вы получили <b>{income} кДж</b> энергии')
@@ -103,14 +105,18 @@ async def cases(message:Message):
 
 @router.message(F.text.casefold().in_(['🧪лаборатория', 'лаборатория']))
 async def laboratory(message:Message):
-    user_data = (await get_json('data.json'))[str(message.from_user.id)]
-    x = user_data['chemical_element']+1
-    chem_el = (await get_json('chemical_elements.json'))[str(x)]
-    await message.answer(text='Выберите действие:', reply_markup=inline.laboratory_kb(round(10*(2.8)**x), chem_el['name']))
+    data= await get_json('data.json')
+    if str(message.from_user.id) in data:
+        user_data = data[str(message.from_user.id)]
+        x = user_data['chemical_element']+1
+        chem_el = (await get_json('chemical_elements.json'))[str(x)]
+        await message.answer(text='Выберите действие:', reply_markup=inline.laboratory_kb(round(10*(2.8)**x), chem_el['name'], round(10*(1.63)**(user_data['isotopes']+1))))
+    else:
+        await message.answer(text='Для начала откройте хотя бы один химический элемент')
 
 
-
-@router.callback_query(F.data.casefold().in_(['buy_el', 'lack_el']))
+# Следующая функция самый чистый код в вашей жизни
+@router.callback_query(F.data.casefold().in_(['buy_el', 'buy_is']))
 async def laboratoey_buy(callback:CallbackQuery):
     if callback.data == 'buy_el':
         data = await get_json('data.json')
@@ -131,9 +137,42 @@ async def laboratoey_buy(callback:CallbackQuery):
             await callback.message.edit_reply_markup(
                 reply_markup=inline.laboratory_kb(
                     round(10*(2.8)**(x+1)),
-                    chem_els[str(x+1)]['name']
+                    chem_els[str(x+1)]['name'],
+                    round(10*(1.63)**(user_data['isotopes']+1))
                     )
                 )
             await callback.message.answer(text=f'Поздравляем! Вы получили {chem_els[str(data[str(callback.from_user.id)]['chemical_element'])]['name']}!')
+        else:
+            await callback.answer(text='😭Вам не хватает энергии!')
+    
+    elif callback.data == 'buy_is':
+        data = await get_json('data.json')
+        
+        # Проверка, будет ли баланс после вычитания стоимости отрицательным
+        user_data =data[str(callback.from_user.id)]
+        x =user_data['isotopes']+1
+        balance = user_data['balance']
+        cost = round(10*(1.63)**x)
+        new_balance = balance-cost
+        
+        if new_balance >=0:
+            chem_els = await get_json('chemical_elements.json')
+            if x<=chem_els[str(user_data['chemical_element'])]['isotopes']:
+                user_data['balance'] =new_balance
+                # Обновление изотопа в data.json
+                user_data['isotopes'] =x
+                data[str(callback.from_user.id)] = user_data = user_data
+                load_json('data.json', data)
+                
+                await callback.message.edit_reply_markup(
+                    reply_markup=inline.laboratory_kb(
+                        round(10*(2.8)**(user_data['chemical_element']+1)),
+                        chem_els[str(user_data['chemical_element']+1)]['name'],
+                        round(10*(1.63)**(x+1))
+                        )
+                    )
+                await callback.message.answer(text=f'Поздравляем! Вы получили новый изотоп!')
+            else:
+                await callback.answer(text='Чтобы купить этот изотоп, откройте новый элемент!')
         else:
             await callback.answer(text='😭Вам не хватает энергии!')

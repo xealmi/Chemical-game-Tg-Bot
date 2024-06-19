@@ -34,10 +34,9 @@ async def ivent_first_chemical_element(callback:CallbackQuery):
     user_data = {
         'date_of_register': datetime.now().strftime('%d-%m-%y'),
         'chemical_element': 1,
-        'isotopes': [],
-        'balance': 10,
+        'isotopes': 0,
+        'balance': 50,
         'last_profit_collection': str(datetime.today()),
-        'income_per_minute': 1,
         'cases': {
             "common_case": 1,
             "epic_case": 0,

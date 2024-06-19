@@ -17,10 +17,11 @@ def cases_kb(c,e,l,m):
     )
     return kb
 
-def laboratory_kb(cost, name):
+def laboratory_kb(eprice, name, iprice):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=f'Получить {name} ({cost} кДж)', callback_data='buy_el')]
+            [InlineKeyboardButton(text=f'Получить {name} ({eprice} кДж)', callback_data='buy_el')],
+            [InlineKeyboardButton(text=f'Получить новый изотоп ({iprice} кДж)', callback_data='buy_is')]
         ]
     )
     return kb
