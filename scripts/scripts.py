@@ -6,14 +6,14 @@ def case_roll(case):
     
     if case == 'common_case':
         if 0<=val<950:
-            return 
-        elif 950<=val<=1000:
+            return randint(400, 1400)
+        else:
             return 'epic_case'
     
     
     elif case == 'epic_case':
         if 0<=val<950:
-            return randint(1500, 4000)
+            return randint(3000, 6500)
         elif 950<=val<985:
             return 'legendary_case'
         else:
@@ -33,7 +33,7 @@ def case_roll(case):
     
     elif case == 'mythical_case':
         if 0<=val<750:
-            return randint(15000, 23500)
+            return randint(30000, 65500)
         elif 750<=val<875:
             return 'mythical_case'
         elif 875<=val<935:
@@ -44,6 +44,42 @@ def case_roll(case):
             return 'prem3d'
 
 
-def prem_chek(user_data):
-    if isinstance(user_data['premium'], int):
-        return [False]
+def lab_price_calc(x):
+    return round(
+        500 +100*4.5**x
+    )
+
+def lab_income_calc(x):
+    return 1+x/10
+
+
+
+def ch_el_price_calc(x):
+    return round(
+        10*3.2**x
+    )
+
+def ch_el_income_calc(x):
+    return round(
+        (1-1.4**x)/(-0.4)
+    )
+
+
+
+def is_price_calc(x):
+    return round(
+        10*(1.63)**x
+    )
+
+def is_income_calc(x):
+    return round(
+        (1-1.05**x)/(-0.05)
+    )
+
+def income_calc(ch_el, iso, labs):
+    return round(
+        (is_income_calc(iso) + ch_el_income_calc(ch_el)) * lab_income_calc(labs)
+    )
+
+def case_price():
+    return [1000,5000,20000,50000]

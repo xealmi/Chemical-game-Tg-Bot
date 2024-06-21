@@ -36,6 +36,7 @@ async def ivent_first_chemical_element(callback:CallbackQuery):
         'chemical_element': 1,
         'isotopes': 0,
         'balance': 50,
+        'labs': 0,
         'last_profit_collection': str(datetime.today()),
         'cases': {
             "common_case": 1,

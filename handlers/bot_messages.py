@@ -3,7 +3,7 @@ from aiogram.types import Message, FSInputFile, CallbackQuery
 from data.subloader import get_json, load_json
 from keyboards import reply, inline
 from datetime import datetime, timedelta
-from scripts.scripts import case_roll 
+from scripts.scripts import case_roll, is_price_calc, ch_el_price_calc, lab_price_calc, income_calc
 
 #=======================================================================================
 
@@ -20,13 +20,18 @@ async def profile(message: Message):
     data = await get_json('data.json')
     if str(message.from_user.id) in data:
         user_data = data[str(message.from_user.id)]
+        prem = (datetime.fromisoformat(user_data['premium']) - datetime.today()).days>0
         await message.answer_photo(
             photo=profile_photo,
-            caption=f'👤{message.from_user.full_name}\n'
+            caption=
+            f'👤{message.from_user.full_name}\n'
             '-----------\n'
             f'⚛Последний открытый элемент: <b>{(await get_json('chemical_elements.json'))[str(user_data['chemical_element'])]['symbol']}</b>\n'
             f'🌟Открыто элементов: <b>{user_data['chemical_element']}</b>\n'
-            f'💥Баланс: <b>{user_data['balance']} кДж</b>',
+            f'💥Баланс: <b>{user_data['balance']} кДж</b>\n'
+            f'Энерговыработка: <b>{income_calc(user_data['chemical_element'], user_data['isotopes'], user_data['labs']) * (2 if prem else 1)} кДж/мин</b>\n'
+            '-----------\n'
+            f'💳Premium: {f'до {user_data['premium'][:-7]}' if prem else 'Отсутствует'}',
             reply_markup=reply.menu_rkb
         )
     else:
@@ -41,10 +46,15 @@ async def collect_profit(message:Message):
         user_data = data[str(message.from_user.id)]
         now = datetime.today()
         time = (now - datetime.fromisoformat(user_data['last_profit_collection'])).seconds//60
+        prem = (datetime.fromisoformat(user_data['premium']) - now).days>0
         if time !=0:
-            el_income = user_data['chemical_element']
-            is_income = user_data['isotopes']
-            income = (round((1-1.4**el_income)/(-0.4)) + round((1-1.05**is_income)/(-0.05)))   *time*   (2 if (datetime.fromisoformat(user_data['premium']) -now).seconds>0 else 1)
+            if prem:
+                if time>480:
+                    time =480
+            else:
+                if time>240:
+                    time =240
+            income = income_calc(user_data['chemical_element'], user_data['isotopes'], user_data['labs']) * time * (2 if prem else 1)
             user_data['balance'] += income
             user_data['last_profit_collection'] = str(now)
             await message.answer(text=f'💥Вы получили <b>{income} кДж</b> энергии')
@@ -116,7 +126,7 @@ async def open_case(callback: CallbackQuery):
             
             elif res== 'prem3d':
                 today =datetime.today()
-                if (datetime.fromisoformat(user_data['premium']) -today).seconds>0:
+                if (datetime.fromisoformat(user_data['premium']) - today).days>0:
                     user_data['premium'] = str(datetime.fromisoformat(user_data['premium']) + timedelta(days=3))
                 else:
                     user_data['premium'] = str(today + timedelta(days=3))
@@ -147,12 +157,12 @@ async def laboratory(message:Message):
         user_data = data[str(message.from_user.id)]
         x = user_data['chemical_element']+1
         chem_el = (await get_json('chemical_elements.json'))[str(x)]
-        await message.answer(text='Выберите действие:', reply_markup=inline.laboratory_kb(round(10*(2.8)**x), chem_el['name'], round(10*(1.63)**(user_data['isotopes']+1))))
+        await message.answer(text='Выберите действие:', reply_markup=inline.laboratory_kb(round(10*3.2**x), chem_el['name'], round(10*(1.63)**(user_data['isotopes']+1))))
     else:
         await message.answer(text='Для начала откройте хотя бы один химический элемент')
 
 
-# Следующая функция самый чистый код в вашей жизни
+# Следующая функция это самый чистый код в вашей жизни
 @router.callback_query(F.data.casefold().in_(['buy_el', 'buy_is']))
 async def laboratoey_buy(callback:CallbackQuery):
     if callback.data == 'buy_el':
@@ -161,7 +171,7 @@ async def laboratoey_buy(callback:CallbackQuery):
         # Проверка, будет ли баланс после вычитания стоимости отрицательным
         x =user_data['chemical_element']+1
         balance = user_data['balance']
-        cost = round(10*(2.8)**x)
+        cost = ch_el_price_calc(x)
         new_balance = balance-cost
         
         if new_balance >=0:
@@ -173,9 +183,9 @@ async def laboratoey_buy(callback:CallbackQuery):
             
             await callback.message.edit_reply_markup(
                 reply_markup=inline.laboratory_kb(
-                    round(10*(2.8)**(x+1)),
+                    ch_el_price_calc(x+1),
                     chem_els[str(x+1)]['name'],
-                    round(10*(1.63)**(user_data['isotopes']+1))
+                    is_price_calc(user_data['isotopes']+1)
                     )
                 )
             await callback.message.answer(text=f'Поздравляем! Вы получили {chem_els[str(user_data['chemical_element'])]['name']}!')
@@ -185,31 +195,87 @@ async def laboratoey_buy(callback:CallbackQuery):
     elif callback.data == 'buy_is':
         data = await get_json('data.json')
         
-        # Проверка, будет ли баланс после вычитания стоимости отрицательным
         user_data =data[str(callback.from_user.id)]
         x =user_data['isotopes']+1
         balance = user_data['balance']
-        cost = round(10*(1.63)**x)
-        new_balance = balance-cost
         
-        if new_balance >=0:
+        if balance>=is_price_calc(x):
             chem_els = await get_json('chemical_elements.json')
             if x<=chem_els[str(user_data['chemical_element'])]['isotopes']:
-                user_data['balance'] =new_balance
+                
                 # Обновление изотопа в data.json
+                user_data['balance'] =balance-is_price_calc(x)
                 user_data['isotopes'] =x
                 data[str(callback.from_user.id)] = user_data = user_data
                 load_json('data.json', data)
                 
                 await callback.message.edit_reply_markup(
                     reply_markup=inline.laboratory_kb(
-                        round(10*(2.8)**(user_data['chemical_element']+1)),
+                        ch_el_price_calc(user_data['chemical_element']+1),
                         chem_els[str(user_data['chemical_element']+1)]['name'],
-                        round(10*(1.63)**(x+1))
+                        is_price_calc(x+1)
                         )
                     )
                 await callback.message.answer(text=f'Поздравляем! Вы получили новый изотоп!')
             else:
-                await callback.answer(text='Чтобы купить этот изотоп, откройте новый элемент!')
+                await callback.answer(text='Для этого откройте новый элемент!')
         else:
             await callback.answer(text='😭Вам не хватает энергии!')
+
+
+
+
+@router.message(F.text.casefold().in_(['🏪магазин', 'магазин']))
+async def shop(message:Message):
+    data= await get_json('data.json')
+    if str(message.from_user.id) in data:
+        qua_lab= data[str(message.from_user.id)]['labs']
+        await message.answer(text='Что Вы хотите приобрести?', reply_markup=inline.shop_kb(qua_lab))
+    else:
+        await message.answer(text='Для начала откройте хотя бы один химический элемент')
+
+@router.callback_query(F.data.casefold().in_(['buy_case', 'buy_lab']))
+async def shop_logic(callback: CallbackQuery):
+    
+    if callback.data == 'buy_case':
+        await callback.message.edit_text(text='Какой кейс Вы хотите приобрести?', reply_markup=inline.case_shop_kb())
+    
+    elif callback.data == 'buy_lab':
+        data = await get_json('data.json')
+        user_data = data[str(callback.from_user.id)]
+        
+        ch_el = user_data['chemical_element']
+        labs = user_data['labs']
+        if ch_el>3:
+            if labs+1 <=ch_el:
+                cost = lab_price_calc(labs)
+                if user_data['balance']<cost:
+                    await callback.answer(text='😭Вам не хватает энергии!')
+                else:
+                    user_data['balance']-=cost
+                    user_data['labs']+=1
+                    await callback.message.edit_reply_markup(reply_markup=inline.shop_kb(labs+1))
+                    await callback.message.answer(text='Поздравляем, Вы наняли лаборанта! Ваш доход увеличен на 10%')
+                    data[str(callback.from_user.id)] = user_data
+                    load_json('data.json', data)
+            else:
+                await callback.answer(text='Для этого откройте новый элемент!')
+        else:
+            await callback.answer(text='Для этого откройте Бериллий!')
+
+@router.callback_query(F.data[:-5].casefold().in_(['buy_common_case','buy_epic_case','buy_legendary_case','buy_mythical_case']))
+async def buy_case(callback:CallbackQuery):
+    case = callback.data[4:][:-5]
+    
+    data = await get_json('data.json')
+    user_data = data[str(callback.from_user.id)]
+    price = callback.data[-5:]
+    price = int(price.replace('_', ''))
+    if user_data['balance']>=price:
+        user_data['balance']-=price
+        user_data['cases'][case]+=1
+        data[str(callback.from_user.id)] = user_data
+        await callback.answer(text='🎁Кейс успешно куплен')
+        load_json('data.json', data)
+    else:
+        await callback.answer(text='😭Вам не хватает энергии!')
