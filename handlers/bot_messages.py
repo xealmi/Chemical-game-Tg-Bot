@@ -1,7 +1,7 @@
 from aiogram import F, Router
 from aiogram.types import Message, FSInputFile, CallbackQuery
 from data.subloader import get_json, load_json
-from keyboards import reply, inline
+from keyboards import reply, inline, builders
 from datetime import datetime, timedelta
 from scripts.scripts import case_roll, is_price_calc, ch_el_price_calc, lab_price_calc, income_calc
 
@@ -12,6 +12,9 @@ router = Router()
 #=======================================================================================
 
 profile_photo = FSInputFile('data/images/profile.jpg')
+laboratory_photo = FSInputFile('data/images/laboratory.jpeg')
+shop_photo = FSInputFile('data/images/shop.jpg')
+cases_photo = FSInputFile('data/images/cases.png')
 
 #=======================================================================================
 
@@ -25,9 +28,12 @@ async def profile(message: Message):
             photo=profile_photo,
             caption=
             f'👤{message.from_user.full_name}\n'
+            f'👁{user_data['status']}{'😎' if user_data['status']=='Гл.Админ' else ''}\n'
             '-----------\n'
             f'⚛Последний открытый элемент: <b>{(await get_json('chemical_elements.json'))[str(user_data['chemical_element'])]['symbol']}</b>\n'
             f'🌟Открыто элементов: <b>{user_data['chemical_element']}</b>\n'
+            f'🌡Открыто изотопов:  <b>{user_data['isotopes']}</b>\n'
+            f'👨‍🔬Нанято лаборантов: <b>{user_data['labs']}</b>\n'
             f'💥Баланс: <b>{user_data['balance']} кДж</b>\n'
             f'Энерговыработка: <b>{income_calc(user_data['chemical_element'], user_data['isotopes'], user_data['labs']) * (2 if prem else 1)} кДж/мин</b>\n'
             '-----------\n'
@@ -73,7 +79,7 @@ async def cases(message:Message):
     
     if str(message.from_user.id) in data:
         user_data = data[str(message.from_user.id)]
-        await message.answer(text=f'Ваши кейсы:', reply_markup=inline.cases_kb(user_data['cases']))
+        await message.answer_photo(photo=cases_photo,caption=f'Ваши кейсы:', reply_markup=inline.cases_kb(user_data['cases']))
     else:
         await message.answer(text='Для начала откройте хотя бы один химический элемент')
 
@@ -157,14 +163,14 @@ async def laboratory(message:Message):
         user_data = data[str(message.from_user.id)]
         x = user_data['chemical_element']+1
         chem_el = (await get_json('chemical_elements.json'))[str(x)]
-        await message.answer(text='Выберите действие:', reply_markup=inline.laboratory_kb(round(10*3.2**x), chem_el['name'], round(10*(1.63)**(user_data['isotopes']+1))))
+        await message.answer_photo(photo=laboratory_photo,caption='Выберите действие:', reply_markup=inline.laboratory_kb(round(10*3.2**x), chem_el['name'], round(10*(1.63)**(user_data['isotopes']+1))))
     else:
         await message.answer(text='Для начала откройте хотя бы один химический элемент')
 
 
 # Следующая функция это самый чистый код в вашей жизни
 @router.callback_query(F.data.casefold().in_(['buy_el', 'buy_is']))
-async def laboratoey_buy(callback:CallbackQuery):
+async def laboratory_buy(callback:CallbackQuery):
     if callback.data == 'buy_el':
         data = await get_json('data.json')
         user_data= data[str(callback.from_user.id)]
@@ -173,24 +179,26 @@ async def laboratoey_buy(callback:CallbackQuery):
         balance = user_data['balance']
         cost = ch_el_price_calc(x)
         new_balance = balance-cost
-        
-        if new_balance >=0:
-            user_data['balance'] =new_balance
-            chem_els = await get_json('chemical_elements.json')
-            # Обновление хим. элиента в data.json
-            user_data['chemical_element'] =x
-            load_json('data.json', data)
-            
-            await callback.message.edit_reply_markup(
-                reply_markup=inline.laboratory_kb(
-                    ch_el_price_calc(x+1),
-                    chem_els[str(x+1)]['name'],
-                    is_price_calc(user_data['isotopes']+1)
+        chem_els = await get_json('chemical_elements.json')
+        if x<= len(chem_els):
+            if new_balance >=0:
+                user_data['balance'] =new_balance
+                # Обновление хим. элиента в data.json
+                user_data['chemical_element'] =x
+                load_json('data.json', data)
+                
+                await callback.message.edit_reply_markup(
+                    reply_markup=inline.laboratory_kb(
+                        ch_el_price_calc(x+1),
+                        chem_els[str(x+1)]['name'],
+                        is_price_calc(user_data['isotopes']+1)
+                        )
                     )
-                )
-            await callback.message.answer(text=f'Поздравляем! Вы получили {chem_els[str(user_data['chemical_element'])]['name']}!')
+                await callback.message.answer(text=f'🎉Поздравляем! Вы получили {chem_els[str(user_data['chemical_element'])]['name']}!')
+            else:
+                await callback.answer(text='😭Вам не хватает энергии!')
         else:
-            await callback.answer(text='😭Вам не хватает энергии!')
+            await callback.answer(text=f'Извините, элементы после Аргона заблокированы')
     
     elif callback.data == 'buy_is':
         data = await get_json('data.json')
@@ -216,7 +224,7 @@ async def laboratoey_buy(callback:CallbackQuery):
                         is_price_calc(x+1)
                         )
                     )
-                await callback.message.answer(text=f'Поздравляем! Вы получили новый изотоп!')
+                await callback.message.answer(text=f'🎉Поздравляем! Вы получили новый изотоп!')
             else:
                 await callback.answer(text='Для этого откройте новый элемент!')
         else:
@@ -230,7 +238,7 @@ async def shop(message:Message):
     data= await get_json('data.json')
     if str(message.from_user.id) in data:
         qua_lab= data[str(message.from_user.id)]['labs']
-        await message.answer(text='Что Вы хотите приобрести?', reply_markup=inline.shop_kb(qua_lab))
+        await message.answer_photo(photo=shop_photo ,caption='Что Вы хотите приобрести?', reply_markup=inline.shop_kb(qua_lab))
     else:
         await message.answer(text='Для начала откройте хотя бы один химический элемент')
 
@@ -238,7 +246,7 @@ async def shop(message:Message):
 async def shop_logic(callback: CallbackQuery):
     
     if callback.data == 'buy_case':
-        await callback.message.edit_text(text='Какой кейс Вы хотите приобрести?', reply_markup=inline.case_shop_kb())
+        await callback.message.edit_caption(caption='Какой кейс Вы хотите приобрести?', reply_markup=inline.case_shop_kb())
     
     elif callback.data == 'buy_lab':
         data = await get_json('data.json')
@@ -279,3 +287,30 @@ async def buy_case(callback:CallbackQuery):
         load_json('data.json', data)
     else:
         await callback.answer(text='😭Вам не хватает энергии!')
+
+@router.callback_query(F.data == 'case_shop_back')
+async def case_shop_back(callback:CallbackQuery):
+    await callback.message.edit_caption(caption='Что Вы хотите приобрести?', reply_markup=inline.shop_kb((await get_json('data.json'))[str(callback.from_user.id)]['labs']))
+
+@router.message(F.text.casefold().in_(['💰донат', 'донат']))
+async def donate(message:Message):
+    await message.answer(text='Выберите донат:', reply_markup=await builders.donate_kb_builder())
+
+@router.message(F.text.casefold().in_(['🏅топ', 'топ']))
+async def top(message:Message):
+    data= await get_json('data.json')
+    if str(message.from_user.id) in data:
+        a = 0
+        top = ''
+        while a < 10:
+            a+=1
+            if data != {}:
+                inverse = [(value[1]['balance'], value[1]['nick'], value[0]) for value in data.items()]
+                max_key = max(inverse)
+                top = top + f'{a}) {max_key[1]} - {max_key[0]} кДж\n'
+                data.pop(max_key[2])
+            else:
+                break
+        await message.answer(text = '🤑Топ-10 самых богатых игроков:\n' + top + '\nЧтобы сменить ник напишите "/nick [новый ник]"')
+    else:
+        await message.answer(text='Для начала откройте хотя бы один химический элемент')

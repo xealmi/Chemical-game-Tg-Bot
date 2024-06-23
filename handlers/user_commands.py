@@ -1,5 +1,5 @@
 from aiogram import F,Router
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.types import Message, FSInputFile, CallbackQuery
 from data.subloader import get_json, load_json
 from keyboards import inline, reply
@@ -32,6 +32,8 @@ async def start(message:Message):
 async def ivent_first_chemical_element(callback:CallbackQuery):
     data = await get_json('data.json')
     user_data = {
+        "status": "Игрок",
+        'nick': callback.from_user.full_name,
         'date_of_register': datetime.now().strftime('%d-%m-%y'),
         'chemical_element': 1,
         'isotopes': 0,
@@ -49,3 +51,14 @@ async def ivent_first_chemical_element(callback:CallbackQuery):
     data[str(callback.from_user.id)] = user_data
     load_json('data.json', data)
     await callback.message.answer(text='Поздравляем! Вы получили свой первый химический элемент - Водород', reply_markup=reply.menu_rkb)
+
+@router.message(Command('nick'))
+async def set_nick(message:Message, command: CommandObject):
+    if command.args != None:
+        if len(command.args) <=35:
+            data = (await get_json('data.json'))
+            data[str(message.from_user.id)]['nick'] = command.args
+            load_json('data.json', data)
+            await message.answer(text=f'Ваш ник успешно изменён на {command.args}')
+        else:
+            await message.answer(text=f'Ваш ник слишком длинный')

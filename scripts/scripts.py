@@ -1,4 +1,5 @@
 from random import randint, choices
+from data.subloader import get_json
 
 def case_roll(case):
     val = randint(0,1000)
