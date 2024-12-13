@@ -3,4 +3,6 @@ services:
   bot:
     build: .
     command: sh -c "python main.py"
+    env_file:
+      - ./.env
     restart: always
